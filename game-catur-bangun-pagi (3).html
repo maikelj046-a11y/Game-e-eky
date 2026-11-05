@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Catur Bangun Pagi</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- chess.js library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      user-select: none;
+    }
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      aspect-ratio: 1 / 1;
+      width: 100%;
+    }
+    .sq {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      font-size: max(2rem, 4.5vw);
+      transition: all 0.15s ease;
+    }
+    .sq.l { background-color: #fef3c7; }
+    .sq.d { background-color: #d97706; }
+    .sq.sel { background-color: #f59e0b !important; ring: 3px inset #78350f; }
+    .sq.lm { background-color: #fde68a; }
+    .dot {
+      width: 30%;
+      height: 30%;
+      background-color: rgba(120, 53, 15, 0.35);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .cap {
+      position: absolute;
+      inset: 2px;
+      border: 3px solid #ef4444;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: pulse 1.5s infinite;
+    }
+    .pc {
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
+      transition: transform 0.1s ease;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sq:hover .pc {
+      transform: scale(1.18);
+    }
+    .sq:hover .pc {
+      transform: scale(1.15);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #fef3c7; }
+    ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-amber-50 text-slate-800 min-h-screen p-2 md:p-6 flex flex-col items-center justify-center">
+
+  <!-- Header Header Utama -->
+  <header class="w-full max-w-4xl flex items-center justify-between mb-4 bg-white/90 backdrop-blur border border-amber-200 p-3 md:p-4 rounded-2xl shadow-sm">
+    <div class="flex items-center gap-3">
+      <span class="text-3xl md:text-4xl">🌅</span>
+      <div>
+        <h1 class="font-extrabold text-base md:text-xl text-amber-950 leading-tight">Game Catur Semangat Pagi</h1>
+        <p class="text-xs text-amber-700 font-semibold">Tim Semangat ☕ vs Tim Kasur 💤</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="sbtn" onclick="toggleSound()" class="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-bold text-sm transition">🔊</button>
+      <button onclick="reset()" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl font-bold text-xs md:text-sm transition">🔄 Reset</button>
+    </div>
+  </header>
+
+  <!-- Container Utama -->
+  <main class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+    <!-- Kolom Kiri: Papan Catur & Kontrol -->
+    <div class="lg:col-span-7 flex flex-col items-center bg-white p-3 md:p-5 rounded-3xl border border-amber-200 shadow-md relative">
+      
+      <!-- Quotes Pagi -->
+      <div id="quote" class="w-full text-center text-xs md:text-sm font-semibold text-amber-900 bg-amber-100/70 p-2.5 rounded-xl mb-3 border border-amber-200/60 min-h-[38px] flex items-center justify-center">
+        “Bangun subuh membuka pintu rezeki dan menyegarkan jiwa!” 🌅
+      </div>
+
+      <!-- Card Timer & Pemain Hitam -->
+      <div id="cb" class="w-full flex justify-between items-center bg-amber-950 text-amber-50 p-2.5 rounded-xl mb-2 transition-all">
+        <div class="flex items-center gap-2 text-xs md:text-sm font-bold">
+          <span id="nameb">💤 Tim Kasur (Hitam)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="capb" class="text-xs">—</span>
+          <span id="tb" class="font-mono bg-black/40 px-2 py-1 rounded text-xs md:text-sm font-extrabold text-amber-300">05:00</span>
+        </div>
+      </div>
+
+      <!-- Area Board Catur -->
+      <div class="relative w-full rounded-2xl overflow-hidden border-2 border-amber-900/20 shadow-inner">
+        <div id="board" class="board-grid"></div>
+
+        <!-- Modal Overlay Kemenangan Langsung di Atas Papan Catur -->
+        <div id="winOverlay" class="hidden absolute inset-0 bg-amber-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-30">
+          <div class="bg-amber-500 text-amber-950 p-6 rounded-3xl border-4 border-amber-300 shadow-2xl max-w-sm w-full flex flex-col items-center animate-bounce">
+            <span class="text-6xl mb-2">🏆</span>
+            <h2 class="font-black text-xs uppercase tracking-widest text-amber-900 mb-1">HASIL PERTANDINGAN</h2>
+            <div id="winText" class="font-black text-xl md:text-2xl text-slate-900 mb-4 leading-tight">
+              🎉 TIM SEMANGAT MENANG!
+            </div>
+            <button onclick="reset()" class="w-full py-3 bg-amber-950 hover:bg-amber-900 text-amber-100 font-extrabold rounded-2xl shadow-lg transition transform hover:scale-105 active:scale-95 text-sm">
+              🔄 Main Lagi
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal/Box Kuis Subuh Overlay Langsung di Atas Papan Catur -->
+        <div id="quiz" class="hidden absolute inset-0 bg-amber-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-6 text-center z-20">
+          <div class="w-full max-w-sm bg-amber-500 text-amber-950 p-4 rounded-2xl border-2 border-amber-400 shadow-2xl">
+            <div class="flex items-center justify-between font-black text-xs uppercase tracking-wider mb-2">
+              <span>⚡ Kuis Subuh (Makan Bidak)</span>
+              <span class="bg-amber-800 text-amber-100 px-2 py-0.5 rounded-full text-[10px]">Wajib Jawab!</span>
+            </div>
+            <p id="qq" class="font-bold text-sm md:text-base text-slate-900 mb-3">Pertanyaan kuis...</p>
+            <div id="qo" class="space-y-2"></div>
+            <div id="qf" class="hidden text-xs font-bold mt-2 p-2 rounded-lg"></div>
+          </div>
+        </div>
+
+        <!-- Start Overlay -->
+        <div id="start" class="absolute inset-0 bg-amber-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10">
+          <span class="text-5xl mb-3">♟️</span>
+          <h2 class="text-white text-xl font-extrabold mb-1">Catur Semangat Pagi</h2>
+          <p class="text-amber-200 text-xs mb-4 max-w-xs">Ayo kalahkan rasa kantuk! Makan bidak lawan dengan menjawab kuis subuh dengan benar!</p>
+          <div class="flex gap-2 mb-4">
+            <select id="modeSelect" class="bg-amber-900 text-amber-100 text-xs font-bold px-3 py-2 rounded-xl border border-amber-700 outline-none">
+              <option value="pvp">👥 Main 2 Pemain (PvP)</option>
+              <option value="easy">🤖 Player 2 = AI (Mudah)</option>
+              <option value="medium">🤖 Player 2 = AI (Sedang)</option>
+              <option value="hard">🤖 Player 2 = AI (Sulit)</option>
+            </select>
+          </div>
+          <button onclick="startGame()" class="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-amber-950 font-extrabold rounded-2xl shadow-lg transition transform hover:scale-105 active:scale-95 text-sm">
+            🚀 Mulai Main Sekarang
+          </button>
+        </div>
+
+        <!-- Pause Overlay -->
+        <div id="pause" class="hidden absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
+          <div class="bg-white p-6 rounded-2xl text-center shadow-xl">
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Permainan Di-Pause ⏸️</h3>
+            <button onclick="togglePause()" class="px-5 py-2 bg-amber-500 text-white font-bold rounded-xl text-sm">▶️ Lanjutkan</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Timer & Pemain Putih -->
+      <div id="cw" class="w-full flex justify-between items-center bg-amber-100 text-amber-950 p-2.5 rounded-xl mt-2 transition-all">
+        <div class="flex items-center gap-2 text-xs md:text-sm font-bold">
+          <span>☕ Tim Semangat (Putih)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="capw" class="text-xs">—</span>
+          <span id="tw" class="font-mono bg-amber-200/80 px-2 py-1 rounded text-xs md:text-sm font-extrabold text-amber-950">05:00</span>
+        </div>
+      </div>
+
+      <!-- Tombol Aksi Kontrol Game -->
+      <div class="w-full flex items-center justify-between gap-2 mt-3 text-xs">
+        <div id="status" class="font-bold text-amber-900">Giliran: Tim Semangat (Putih)</div>
+        <div class="flex gap-1.5">
+          <button id="pbtn" onclick="togglePause()" class="px-2.5 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg font-bold transition">⏸️ Pause</button>
+          <button onclick="undo()" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold transition">↩️ Undo</button>
+          <button onclick="redo()" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold transition">↪️ Redo</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Kolom Kanan: Panduan Bidak Langsung & Log -->
+    <div class="lg:col-span-5 flex flex-col gap-4">
+
+      <!-- Riwayat Langkah / Game Log -->
+      <div class="bg-white p-4 rounded-3xl border border-amber-200 shadow-sm">
+        <div class="flex justify-between items-center mb-2 pb-2 border-b border-amber-100">
+          <h3 class="font-bold text-xs text-amber-950 uppercase tracking-wider">📜 Catatan Langkah</h3>
+          <span id="cnt" class="text-xs font-bold text-amber-700">0 langkah</span>
+        </div>
+        <div id="log" class="max-h-28 overflow-y-auto space-y-1 text-xs text-slate-700">
+          <p class="text-center opacity-60 py-2">Belum ada langkah...</p>
+        </div>
+      </div>
+
+      <!-- Panduan Bidak Langsung -->
+      <div class="bg-white p-4 rounded-3xl border border-amber-200 shadow-sm space-y-3">
+        <h3 class="font-extrabold text-sm text-amber-950 border-b border-amber-100 pb-2 flex items-center justify-between">
+          <span>📖 Panduan Gerak Bidak</span>
+          <span class="text-xs font-semibold text-amber-700">Info Bidak</span>
+        </h3>
+
+        <div class="grid grid-cols-1 gap-2 text-xs max-h-[280px] overflow-y-auto pr-1">
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>🤴 🐻</span> Raja (King)</div>
+            <p class="text-slate-600 mt-0.5">Jalan 1 petak ke segala arah. Bidak utama yang harus dilindungi.</p>
+          </div>
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>🐓 🌙</span> Ratu (Queen)</div>
+            <p class="text-slate-600 mt-0.5">Bidak terkuat! Bebas jalan lurus & diagonal sejauh mungkin.</p>
+          </div>
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>⏰ 🛏️</span> Benteng (Rook)</div>
+            <p class="text-slate-600 mt-0.5">Jalan lurus vertikal atau horizontal sejauh mungkin.</p>
+          </div>
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>☀️ 🕶️</span> Gajah (Bishop)</div>
+            <p class="text-slate-600 mt-0.5">Jalan miring (diagonal) sejauh mungkin pada warna petak sama.</p>
+          </div>
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>☕ 🛋️</span> Kuda (Knight)</div>
+            <p class="text-slate-600 mt-0.5">Melompat bentuk huruf "L" (2 lurus + 1 samping). Boleh melompati bidak.</p>
+          </div>
+          <div class="p-2 rounded-xl bg-amber-50 border border-amber-200/60">
+            <div class="font-bold text-amber-950 flex items-center gap-1"><span>🍞 💤</span> Pion (Pawn)</div>
+            <p class="text-slate-600 mt-0.5">Maju 1 petak (2 petak di awal), memakan miring. Sampai ujung berubah jadi Ratu.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Script Logika Game -->
+  <script>
+    const G = new Chess();
+    const P = {
+      w:{p:'🍞',r:'⏰',n:'☕',b:'☀️',q:'🐓',k:'🤴'},
+      b:{p:'💤',r:'🛏️',n:'🛋️',b:'🕶️',q:'🌙',k:'🐻'}
+    };
+    const TEAM = {w:'Tim Semangat (Putih)', b:'Tim Kasur (Hitam)'};
+    const QUOTES = [
+      '“Bangun subuh membuka pintu rezeki dan menyegarkan jiwa!” 🌅',
+      '“Secangkir kopi pagi siap mengalahkan rasa ngantuk!” ☕',
+      '“Ayam jago sudah berkokok, saatnya Tim Semangat beraksi!” 🐓',
+      '“Jangan biarkan kasur memenangkan pertandingan hari ini!” 🛌'
+    ];
+    const QUIZ = [
+      {q:'Apa manfaat minum air putih hangat setelah bangun tidur?',o:['Melancarkan pencernaan & mengganti cairan tubuh','Membuat ngantuk lagi','Menambah lemak','Bikin pusing'],a:0},
+      {q:'Suara hewan apa yang identik dengan datangnya subuh?',o:['Kucing mengeong','Ayam berkokok','Burung hantu','Sapi melenguh'],a:1},
+      {q:'Aktivitas ringan apa yang baik dilakukan di pagi hari?',o:['Main game seharian','Jalan santai / olahraga pagi','Tidur berselimut','Nonton TV'],a:1},
+      {q:'Vitamin apa yang bisa didapat dari sinar matahari pagi?',o:['Vitamin C','Vitamin D','Vitamin B12','Vitamin E'],a:1},
+      {q:'Berapa jam tidur malam yang ideal bagi orang dewasa?',o:['3 - 4 jam','7 - 8 jam','12 jam','15 jam'],a:1},
+      {q:'Kapan sinar matahari pagi paling baik untuk badan?',o:['Pukul 06.00 - 09.00','Pukul 12.00 siang','Pukul 15.00 sore','Jam 12 malam'],a:0},
+      {q:'Apa akibat sering menekan tombol “Snooze” berulang kali?',o:['Badan makin segar','Otak lemas & makin ngantuk','Jadi makin pintar','Waktu bertambah'],a:1}
+    ];
+
+    const NAMES = {
+      w:{p:'Roti Panggang',r:'Jam Waker',n:'Kopi Panas',b:'Cahaya Surya',q:'Ayam Jago Subuh',k:'Raja Pagi'},
+      b:{p:'Snooze',r:'Bantal Empuk',n:'Selimut Hangat',b:'Kacamata Tidur',q:'Bulan Malam',k:'Beruang Tidur'}
+    };
+
+    let sel=null, vm=[], tw=300, tb=300, mode='pvp';
+    let capW=[], capB=[], paused=false, pending=null, stack=[], redoStack=[], last=null, n=0, logs=[];
+    let over=false, quizOpen=false, thinking=false, sound=true, ac=null, started=false;
+    const $ = id => document.getElementById(id);
+
+    /* ---------- Audio Synthesizer ---------- */
+    function beep(f1,f2,dur,type,vol){
+      if(!sound) return;
+      try{
+        ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+        if(ac.state==='suspended') ac.resume();
+        const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain();
+        o.type=type; o.frequency.setValueAtTime(f1,t);
+        o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+        g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.01,t+dur);
+        o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+dur);
+      }catch(e){}
+    }
+    const snd = {
+      move:()=>beep(320,140,.08,'sine',.3), cap:()=>beep(180,60,.12,'triangle',.5),
+      check:()=>beep(440,880,.25,'sawtooth',.2), click:()=>beep(600,400,.08,'sine',.2)
+    };
+    function toggleSound(){ sound=!sound; $('sbtn').innerText=sound?'🔊':'🔇'; snd.click(); }
+
+    /* ---------- Snapshot State ---------- */
+    function snapshot(){
+      return {fen:G.fen(), capW:[...capW], capB:[...capB], last, n, logs:[...logs], tw, tb};
+    }
+    function restore(s){
+      G.load(s.fen); capW=[...s.capW]; capB=[...s.capB]; last=s.last; n=s.n; logs=[...s.logs]; tw=s.tw; tb=s.tb;
+    }
+    function passTurn(){
+      const p = G.fen().split(' ');
+      p[1] = p[1]==='w' ? 'b' : 'w';
+      p[3] = '-';
+      G.load(p.join(' '));
+    }
+
+    /* ---------- Render Papan & UI ---------- */
+    function render(){
+      const b=$('board'); b.innerHTML='';
+      for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+        const s=String.fromCharCode(97+c)+(8-r);
+        const d=document.createElement('div');
+        d.className='sq '+((r+c)%2===0?'l':'d');
+        if(sel===s) d.classList.add('sel');
+        if(last && (last.from===s||last.to===s)) d.classList.add('lm');
+        const p=G.get(s);
+        if(p){ 
+          const sp=document.createElement('span'); 
+          sp.className='pc'; 
+          sp.textContent=P[p.color][p.type]; 
+          sp.title=NAMES[p.color][p.type]; 
+          d.appendChild(sp); 
+        }
+        if(vm.some(m=>m.to===s)){
+          const x=document.createElement('div'); 
+          x.className = p ? 'cap' : 'dot'; 
+          d.appendChild(x);
+        }
+        d.onclick=()=>clickSq(s);
+        b.appendChild(d);
+      }
+      $('capw').textContent = capW.join(' ') || '—';
+      $('capb').textContent = capB.join(' ') || '—';
+      $('cnt').textContent = n+' langkah';
+      $('log').innerHTML = logs.length ? logs.join('') : '<p class="text-center opacity-60 py-2">Belum ada langkah...</p>';
+      $('tw').textContent=fmt(tw); $('tb').textContent=fmt(tb);
+      if(!over){
+        const w=G.turn()==='w';
+        $('status').textContent='Giliran: '+TEAM[G.turn()];
+        $('cw').style.outline = w ? '3px solid #f59e0b' : 'none';
+        $('cb').style.outline = w ? 'none' : '3px solid #78716c';
+      }
+    }
+    const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+
+    /* ---------- Interaksi Catur ---------- */
+    function clickSq(s){
+      if(!started||over||paused||quizOpen||thinking) return;
+      if(mode!=='pvp' && G.turn()==='b') return;
+      if(sel){
+        const m = vm.find(x=>x.to===s);
+        if(m){
+          const from=sel; sel=null; vm=[];
+          if(m.captured){
+            pending={from,to:s,color:G.turn()};
+            render(); openQuiz(); return;
+          }
+          doMove(from,s); return;
+        }
+      }
+      const p=G.get(s);
+      if(p && p.color===G.turn()){ sel=s; vm=G.moves({square:s,verbose:true}); snd.click(); }
+      else { sel=null; vm=[]; }
+      render();
+    }
+
+    function doMove(from,to){
+      stack.push(snapshot());
+      redoStack = []; // Kosongkan redo jika ada langkah baru
+      const m=G.move({from,to,promotion:'q'});
+      if(!m){ stack.pop(); return; }
+      last={from:m.from,to:m.to}; n++;
+      if(m.captured){
+        const icon=P[m.color==='w'?'b':'w'][m.captured];
+        (m.color==='w'?capW:capB).push(icon); snd.cap();
+      } else snd.move();
+      if(G.in_check()) snd.check();
+      logs.unshift(`<div class="flex justify-between rounded px-2 py-1 bg-amber-100/70 border border-amber-200/50 my-0.5"><span>${n}. ${P[m.color][m.piece]} <b>${m.from}</b> ➔ <b>${m.to}</b></span><span>${m.captured?'⚔️ Makan':''}</span></div>`);
+      $('quote').textContent = QUOTES[Math.floor(Math.random()*QUOTES.length)];
+      render();
+      if(G.game_over()){ endGame(); return; }
+      if(mode!=='pvp' && G.turn()==='b'){ thinking=true; setTimeout(aiMove,600); }
+    }
+
+    /* ---------- Kuis ---------- */
+    function openQuiz(){
+      quizOpen=true;
+      const q=QUIZ[Math.floor(Math.random()*QUIZ.length)];
+      $('qq').textContent=q.q;
+      $('qf').className='hidden text-xs font-bold mt-2 p-2 rounded-lg';
+      const box=$('qo'); box.innerHTML='';
+      q.o.map((t,i)=>({t,ok:i===q.a})).sort(()=>Math.random()-.5).forEach(it=>{
+        const b=document.createElement('button');
+        b.className='w-full text-left text-xs font-semibold p-2 rounded-xl border border-amber-700/30 bg-amber-100 text-amber-950 hover:bg-white transition';
+        b.textContent=it.t;
+        b.onclick=()=>answer(it.ok);
+        box.appendChild(b);
+      });
+      $('quiz').classList.remove('hidden');
+    }
+
+    function answer(ok){
+      const f=$('qf'), color=pending.color;
+      [...$('qo').children].forEach(b=>b.disabled=true);
+      if(ok){
+        snd.check();
+        f.className='text-xs font-bold mt-2 p-2 rounded-lg bg-emerald-100 text-emerald-800';
+        f.textContent='🎯 Benar! Bidak berhasil dimakan!';
+        setTimeout(()=>{
+          $('quiz').classList.add('hidden'); quizOpen=false;
+          const {from,to}=pending; pending=null; doMove(from,to);
+        },1000);
+      } else {
+        snd.click();
+        const next = color==='w'?'b':'w';
+        f.className='text-xs font-bold mt-2 p-2 rounded-lg bg-rose-100 text-rose-800';
+        f.textContent=`❌ Salah! Bidak batal dimakan. Giliran pindah ke ${TEAM[next]}!`;
+        setTimeout(()=>{
+          $('quiz').classList.add('hidden'); quizOpen=false; pending=null;
+          stack.push(snapshot());
+          redoStack = [];
+          passTurn();
+          logs.unshift(`<div class="flex justify-between rounded px-2 py-1 bg-rose-100 text-rose-900 my-0.5"><span>${color==='w'?'Putih':'Hitam'}: jawaban salah ❌</span><span>⏭️ Lewat</span></div>`);
+          last=null; sel=null; vm=[];
+          render();
+          if(G.game_over()){ endGame(); return; }
+          if(mode!=='pvp' && G.turn()==='b'){ thinking=true; setTimeout(aiMove,600); }
+        },1500);
+      }
+    }
+
+    /* ---------- AI Player 2 ---------- */
+    const VAL={p:100,n:320,b:330,r:500,q:900,k:0};
+    const AI_CFG={ easy:{depth:0,eat:.5}, medium:{depth:2,eat:.75}, hard:{depth:3,eat:.95} };
+
+    function evalBoard(){
+      let sc=0; const bd=G.board();
+      for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+        const p=bd[r][c]; if(!p) continue;
+        const center=(3.5-Math.abs(3.5-r))+(3.5-Math.abs(3.5-c));
+        const v=VAL[p.type]+(p.type==='k'?0:center*3);
+        sc += p.color==='w' ? v : -v;
+      }
+      return sc;
+    }
+    function ordered(){
+      return G.moves({verbose:true}).sort((a,b)=>
+        ((b.captured?VAL[b.captured]*10-VAL[b.piece]:0)) - ((a.captured?VAL[a.captured]*10-VAL[a.piece]:0)));
+    }
+    function search(d,alpha,beta,maxW){
+      if(G.in_checkmate()) return maxW ? -99999-d : 99999+d;
+      if(G.in_draw()||G.in_stalemate()) return 0;
+      if(d===0) return evalBoard();
+      let best = maxW ? -Infinity : Infinity;
+      for(const m of ordered()){
+        G.move({from:m.from,to:m.to,promotion:'q'});
+        const v=search(d-1,alpha,beta,!maxW);
+        G.undo();
+        if(maxW){ best=Math.max(best,v); alpha=Math.max(alpha,v); }
+        else { best=Math.min(best,v); beta=Math.min(beta,v); }
+        if(beta<=alpha) break;
+      }
+      return best;
+    }
+    function pickAIMove(){
+      const all=G.moves({verbose:true});
+      const cfg=AI_CFG[mode]||AI_CFG.easy;
+      if(cfg.depth===0) return all[Math.floor(Math.random()*all.length)];
+      let bestV=Infinity, bestMoves=[];
+      for(const m of all.sort(()=>Math.random()-.5)){
+        G.move({from:m.from,to:m.to,promotion:'q'});
+        const v=search(cfg.depth-1,-Infinity,Infinity,true);
+        G.undo();
+        if(v<bestV){ bestV=v; bestMoves=[m]; } else if(v===bestV) bestMoves.push(m);
+      }
+      return bestMoves[Math.floor(Math.random()*bestMoves.length)];
+    }
+
+    function aiMove(){
+      thinking=false;
+      if(over) return;
+      if(paused){ thinking=true; setTimeout(aiMove,500); return; }
+      if(!G.moves().length) return;
+      const m=pickAIMove();
+      const cfg=AI_CFG[mode]||AI_CFG.easy;
+      // AI juga harus "menjawab kuis" saat ingin makan bidak
+      if(m.captured && Math.random()>cfg.eat){
+        stack.push(snapshot()); redoStack=[];
+        passTurn();
+        logs.unshift(`<div class="flex justify-between rounded px-2 py-1 bg-rose-100 text-rose-900 my-0.5"><span>🤖 AI: jawaban kuis salah ❌</span><span>⏭️ Lewat</span></div>`);
+        last=null; sel=null; vm=[];
+        $('quote').textContent='🤖 AI salah menjawab kuis subuh, bidakmu selamat!';
+        render();
+        return;
+      }
+      doMove(m.from,m.to);
+    }
+
+    /* ---------- Timer Loop ---------- */
+    setInterval(()=>{
+      if(!started||paused||over||quizOpen) return;
+      if(G.turn()==='w'){ if(--tw<=0){ tw=0; timeout('w'); } }
+      else { if(--tb<=0){ tb=0; timeout('b'); } }
+      $('tw').textContent=fmt(tw); $('tb').textContent=fmt(tb);
+    },1000);
+
+    function timeout(loser){
+      over=true;
+      const winnerName = loser==='w' ? TEAM['b'] : TEAM['w'];
+      const winMessage = `⏰ WAKTU HABIS!<br><span class="text-amber-950">${winnerName.toUpperCase()} MENANG!</span>`;
+      $('status').textContent = `⏰ Waktu habis! ${winnerName} menang!`;
+      showWinOverlay(winMessage);
+    }
+
+    function endGame(){
+      over=true;
+      let t='Permainan selesai!';
+      let winMsg = '🤝 PERMAINAN SERI!';
+      if(G.in_checkmate()) {
+        const winner = G.turn() === 'w' ? TEAM['b'] : TEAM['w'];
+        t=`🎉 SKAKMAT! ${winner} MENANG! 🏆`;
+        winMsg = `🎉 SKAKMAT!<br><span class="text-amber-950">${winner.toUpperCase()} MENANG!</span>`;
+      }
+      else if(G.in_draw()||G.in_stalemate()) {
+        t='🤝 Permainan seri!';
+        winMsg = '🤝 PERMAINAN SERI!';
+      }
+      $('status').textContent=t; 
+      snd.check();
+      showWinOverlay(winMsg);
+    }
+
+    function showWinOverlay(msg){
+      $('winText').innerHTML = msg;
+      $('winOverlay').classList.remove('hidden');
+    }
+
+    /* ---------- Kontrol Permainan ---------- */
+    function startGame(){ 
+      mode = $('modeSelect').value;
+      const isAI = mode!=='pvp';
+      TEAM.b = isAI ? '🤖 Player 2 AI (Hitam)' : 'Tim Kasur (Hitam)';
+      $('nameb').textContent = isAI ? '🤖 Player 2 AI (Hitam)' : '💤 Tim Kasur (Hitam)';
+      started=true; 
+      $('start').style.display='none'; 
+      snd.click(); 
+    }
+    function togglePause(){
+      if(!started) return;
+      paused=!paused;
+      const o=$('pause'); 
+      o.classList.toggle('hidden',!paused);
+      $('pbtn').textContent=paused?'▶️ Resume':'⏸️ Pause';
+      snd.click();
+    }
+    function undo(){
+      if(paused||quizOpen||thinking||!stack.length) return;
+      redoStack.push(snapshot());
+      restore(stack.pop());
+      if(mode!=='pvp' && G.turn()==='b' && stack.length) {
+        redoStack.push(snapshot());
+        restore(stack.pop());
+      }
+      over=false; sel=null; vm=[]; render(); snd.click();
+    }
+    function redo(){
+      if(paused||quizOpen||thinking||!redoStack.length) return;
+      stack.push(snapshot());
+      restore(redoStack.pop());
+      if(mode!=='pvp' && G.turn()==='b' && redoStack.length) {
+        stack.push(snapshot());
+        restore(redoStack.pop());
+      }
+      over=false; sel=null; vm=[]; render(); snd.click();
+    }
+    function reset(){
+      G.reset(); sel=null; vm=[]; tw=300; tb=300; capW=[]; capB=[];
+      stack=[]; redoStack=[]; last=null; n=0; logs=[]; over=false; thinking=false; quizOpen=false; pending=null;
+      paused=false; $('pause').classList.add('hidden'); $('pbtn').textContent='⏸️ Pause';
+      $('quiz').classList.add('hidden');
+      $('winOverlay').classList.add('hidden');
+      started=false; $('start').style.display='flex';
+      render(); snd.click();
+    }
+
+    // Inisialisasi awal
+    render();
+  </script>
+</body>
+</html>
